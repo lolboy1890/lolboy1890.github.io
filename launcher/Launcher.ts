@@ -1,4 +1,5 @@
 import SettingsHandler from "./gamesandthings/SettingsHandler";
+import FilterHandler from "./gamesandthings/FilterHandler";
 import SaveManager from "./gamesandthings/SaveManager";
 import DrawerHandler from "./gamesandthings/DrawerHandler";
 import ScriptInjector from "./gamesandthings/ScriptInjector";
@@ -12,6 +13,7 @@ export default class Launcher {
     public static cnv: HTMLDivElement;
     public static drawer: DrawerHandler;
     public static iframe: HTMLIFrameElement;
+    public static iframeFilterHandler: FilterHandler;
     public static iframeDiv: HTMLDivElement;
     public static game: Game | null;
     public static contextMenu: IContextMenu;
@@ -45,6 +47,8 @@ export default class Launcher {
         Launcher.drawer = new DrawerHandler(document.getElementById("slidymenu") as HTMLDivElement);
         Launcher.drawer.elem.style.left = "-150px";
 
+
+
         Launcher.cnv = (document.createElement("div") as HTMLDivElement)
         Launcher.cnv.id = "cnv";
         document.body.appendChild(Launcher.cnv);
@@ -65,9 +69,44 @@ export default class Launcher {
         (window as any).gameLogs = [];
         (window as any).gameData = {};
         Launcher.gameLogs = (window as any).gameLogs;
-        Launcher.openGame(Games.games[0]);
-        
-        alert("PLEASE READ\n\n\nDue to some rewrites and cleanup, the game list selection has temporarily moved under the settings icon in the top left corner. \n All the games and your save data have not been affected. \n The launcher will boot by default into Minecraft 1.12.2.")
+
+        // url parsing
+        function parseQuery(queryString: string) {
+            var query = {};
+            var pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
+            for (var i = 0; i < pairs.length; i++) {
+                var pair = pairs[i].split('=');
+                (query as any)[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+            }
+            return query;
+        }
+
+        let shouldOpenDefault = true;
+
+        if (window.location.search != "") {
+            let args = parseQuery(window.location.search.substring(1));
+            if ("game" in args) {
+                let game = Games.getGameByID(args.game as string);
+                if (game != null) {
+                    shouldOpenDefault = false;
+                    if ("version" in args) {
+                        let version = Games.getVersionByID(game, args.version as string)
+                        if (version != null) {
+                            Launcher.openGame(game, version);
+                        }
+                    }
+                    else {
+                        Launcher.openGame(game);
+                    }
+                }
+            }
+
+        }
+        if (shouldOpenDefault) {
+            Launcher.openGame(Games.games[0]);
+
+            alert("PLEASE READ\n\n\nDue to some rewrites and cleanup, the game list selection has temporarily moved under the settings icon in the top left corner. \n All the games and your save data have not been affected. \n The launcher will boot by default into Minecraft 1.12.2.")
+        }
     }
     public static finalInject() {
         Launcher.beginOpen();
@@ -83,6 +122,7 @@ export default class Launcher {
         //Launcher.initInject();
         if (recreate) {
             Launcher.iframe = (document.createElement("iframe") as HTMLIFrameElement);
+            Launcher.iframeFilterHandler = new FilterHandler();
             Launcher.iframeDiv.appendChild(Launcher.iframe);
         }
 
@@ -155,6 +195,11 @@ export default class Launcher {
             link += "/";
         Launcher.openURL(link);
 
+        let URL: string = window.location.origin + `/?game=${encodeURIComponent(game.id)}`;
+        if (version != null) {
+            URL += `&version=${encodeURIComponent(version.id)}`
+        }
+        window.history.replaceState(null, "", URL)
     }
     public static openURL(url: string) {
         SaveManager.load();
@@ -179,9 +224,23 @@ export default class Launcher {
         Launcher.iframeMode = true;
         //Launcher.drawer.isOut = false;
         // Launcher.iframe.src = url;
+        Launcher.iframeFilterHandler.blur = 0.0;
+
     }
     public static closeIframe(): void {
         Launcher.iframeMode = false;
+        Launcher.iframeFilterHandler.blur = 1.5;
+    }
+    public static forceQuit(): void {
+        (window as any).gameData = {};
+        Launcher.curVersion = "";
+        if (this.drawer.recorder?.recording) {
+            this.drawer.recorder.stopRecording();
+        }
+        Launcher.iframeDiv.removeChild(Launcher.iframe);
+        Launcher.initIframe();
+        Launcher.closeIframe();
+        window.history.replaceState(null, "", window.location.origin);
     }
     public static toggleFullscreen(): void {
         let elem: HTMLElement = document.body;
@@ -229,15 +288,14 @@ export default class Launcher {
             Launcher.fullscreen = false;
         }
 
+        Launcher.iframe.style.top = String(((document.body.offsetHeight - Launcher.iframe.offsetHeight) / 2)) + "px";
+        Launcher.iframe.style.left = String((document.body.offsetWidth - Launcher.iframe.offsetWidth) / 2) + "px";
 
         if (Launcher.iframeMode) {
             Launcher.iframe.contentWindow?.focus();
             Launcher.cnv.style.display = "none";
             Launcher.cnv.style.top = "0px";
             Launcher.iframe.style.opacity = "1";
-            Launcher.iframe.style.top = String(((document.body.offsetHeight - Launcher.iframe.offsetHeight) / 2)) + "px";
-            Launcher.iframe.style.left = String((document.body.offsetWidth - Launcher.iframe.offsetWidth) / 2) + "px";
-            //this.y = 
         }
         else {
             Launcher.cnv.style.display = "flex";
@@ -245,8 +303,8 @@ export default class Launcher {
             Launcher.cnv.style.left = "0";
 
             Launcher.iframe.style.display = "flex";
-            Launcher.iframe.style.opacity = "0";
-            Launcher.iframe.style.top = "0px";
+            Launcher.iframe.style.opacity = "0.5";
+            //  Launcher.iframe.style.top = "0px";
         }
 
         //Launcher.ctx.reset();

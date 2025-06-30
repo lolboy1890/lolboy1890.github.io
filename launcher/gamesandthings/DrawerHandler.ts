@@ -9,6 +9,7 @@ import Vector2 from "./types/Vector2";
 import SettingsHandler from "./SettingsHandler";
 import SaveManager from "./SaveManager";
 import Games, { Game, GameVersion } from "./Games";
+import FilterHandler from "./FilterHandler";
 export default class DrawerHandler implements IPositionable {
     buttonsPressed: Map<string, boolean> = new Map<string, boolean>();
     buttonsContextMenu: Map<string, boolean> = new Map<string, boolean>();
@@ -280,7 +281,8 @@ export default class DrawerHandler implements IPositionable {
 
                                 },
                                 hasSecondary: true,
-                            });
+                            },
+                        );
                         if (!Launcher.game?.forcescreenmode) {
                             options.push(
                                 {
@@ -329,7 +331,7 @@ export default class DrawerHandler implements IPositionable {
                         }
                         if (Launcher.game != null && Launcher.game.versions != null && Launcher.game.versions.length > 1) {
                             options.push({
-                                text: "Set Version",
+                                text: Launcher.game.overrideVersionListName != null ? Launcher.game.overrideVersionListName : "Set Version",
                                 desc: "⚠ If you change versions, unsaved data will be lost.",
                                 descFont: UniFont.ITALIC,
                                 hasSecondary: true,
@@ -356,10 +358,69 @@ export default class DrawerHandler implements IPositionable {
                                 }
                             });
                         }
+                        options.push({
+                            text: "Filters",
+                            onselect: () => {
+                                Launcher.contextMenu.show([
+                                    {
+                                        text: "Blur: " + Launcher.iframeFilterHandler.blur,
+                                        onselect: () => {
+                                            let value = prompt("Blur: ", Launcher.iframeFilterHandler.blur + "");
+                                            if (value != null)
+                                                Launcher.iframeFilterHandler.blur = parseFloat(value);
+                                        }
+                                    },
+                                    {
+                                        text: "Grayscale: " + (Launcher.iframeFilterHandler.grayscale ? "Yes" : "No"),
+                                        onselect: () => {
+                                            Launcher.iframeFilterHandler.grayscale = !Launcher.iframeFilterHandler.grayscale;
+                                        }
+                                    },
+                                    {
+                                        text: "Saturation: " + Launcher.iframeFilterHandler.saturate,
+                                        onselect: () => {
+                                            let value = prompt("Saturation: ", Launcher.iframeFilterHandler.saturate + "");
+                                            if (value != null)
+                                                Launcher.iframeFilterHandler.saturate = parseFloat(value);
+                                        }
+                                    },
+                                    {
+                                        text: "Contrast: " + Launcher.iframeFilterHandler.contrast,
+                                        onselect: () => {
+                                            let value = prompt("Contrast: ", Launcher.iframeFilterHandler.contrast + "");
+                                            if (value != null)
+                                                Launcher.iframeFilterHandler.contrast = parseFloat(value);
+                                        }
+                                    },
+                                    {
+                                        text: "Sepia: " + Launcher.iframeFilterHandler.sepia,
+                                        onselect: () => {
+                                            let value = prompt("Sepia: ", Launcher.iframeFilterHandler.sepia + "");
+                                            if (value != null)
+                                                Launcher.iframeFilterHandler.sepia = parseFloat(value);
+                                        }
+                                    },
+                                                                        {
+                                        text: "Invert: " + (Launcher.iframeFilterHandler.invert ? "Yes" : "No"),
+                                        onselect: () => {
+                                            Launcher.iframeFilterHandler.invert = !Launcher.iframeFilterHandler.invert;
+                                        }
+                                    },
+                                    {
+                                        text: "Reset",
+                                        onselect: () => {
+                                            Launcher.iframeFilterHandler = new FilterHandler();
+                                        }
+                                    },
+                                ]);
+                            },
+                            hasSecondary: true,
+                        });
                         if (Launcher.game?.gameKeys != undefined) {
                             options.push({
                                 text: "Controls",
                                 desc: "(rebinding coming soon!)",
+                                hasSecondary: true,
                                 onselect: () => {
                                     let controls: Array<ContextOption> = [];
                                     Launcher.game?.gameKeys?.forEach((gameKey) => {
@@ -386,8 +447,8 @@ export default class DrawerHandler implements IPositionable {
                                             }
                                         });
                                         controls.push({
-                                            text: top,
-                                            desc: bottom,
+                                            text: top + " - " + bottom,
+                                            //  desc: bottom,
                                         });
 
                                         Launcher.contextMenu.show(controls);
@@ -589,14 +650,7 @@ export default class DrawerHandler implements IPositionable {
                             desc: "⚠ Unsaved data will be lost.",
                             descFont: UniFont.ITALIC,
                             onselect: () => {
-                                (window as any).gameData = {};
-                                Launcher.curVersion = "";
-                                if (this.recorder?.recording) {
-                                    this.recorder.stopRecording();
-                                }
-                                Launcher.iframeDiv.removeChild(Launcher.iframe);
-                                Launcher.initIframe();
-                                Launcher.closeIframe();
+                                Launcher.forceQuit();
                             }
                         }], this.clickX, this.clickY);
                     }
@@ -638,6 +692,9 @@ export default class DrawerHandler implements IPositionable {
                 desc: game.creator,
                 descFont: UniFont.ITALIC,
                 onselect: () => {
+                    if (game.prefix == "app-dt") {
+                        alert("NOTE: DO NOT CLICK CHAPTER SELECT IN GAME!\n\nChapter Select is available under the ⚙ Settings menu in the top left")
+                    }
                     Launcher.openGame(game);
                 }
             });
